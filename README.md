@@ -146,10 +146,10 @@ database = DB_NAME
 ### **Creative Challenge: The Optimization Treasure Hunt — Our Approach**
 
 ```
-* **Stage 1 — Fast SQL Pre-Filter:** PostgreSQL instantly removes non-qualified user–product pairs using hard constraints (income, age, credit score, employment), eliminating ~90% of unnecessary evaluations.
-* **Stage 2 — n8n Rule Engine:** Remaining candidates pass through custom JavaScript logic in Workflow B for deeper eligibility checks and scoring.
-* **Stage 3 — Optional LLM Layer:** Only borderline or ambiguous cases are sent to an LLM for qualitative validation, minimizing compute cost.
-* **Outcome:** A fast, scalable, and cost-efficient pipeline that intelligently reduces workload before applying heavy processing.
+* Stage 1 — Fast SQL Pre-Filter: PostgreSQL instantly removes non-qualified user–product pairs using hard constraints (income, age, credit score, employment), eliminating ~90% of unnecessary evaluations.
+* Stage 2 — n8n Rule Engine: Remaining candidates pass through custom JavaScript logic in Workflow B for deeper eligibility checks and scoring.
+* Stage 3 — Optional LLM Layer: Only borderline or ambiguous cases are sent to an LLM for qualitative validation, minimizing compute cost.
+* Outcome: A fast, scalable, and cost-efficient pipeline that intelligently reduces workload before applying heavy processing.
 ```
 ---
 
