@@ -1,0 +1,220 @@
+{
+  "name": "Workflow C",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT \n    u.user_id,\n    u.name,\n    u.email\nFROM matches m\nJOIN users u ON u.user_id = m.user_id\nWHERE m.status = 'eligible';\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        208,
+        -112
+      ],
+      "id": "7dcc1ec9-11dc-480f-bdce-c9c2d1b523e8",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "WrwHWlroXdfH1lGq",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "subject": "Congratulation for you loan approval!!",
+        "body": "=Hi ,  Great news! You have one or more loan products you are eligible for.  Please visit your dashboard to explore your best loan options.  - Loan Engine",
+        "fromEmail": "120104.akshat@gmail.com",
+        "toAddresses": [
+          "=120104.akshat@gmail.com"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsSes",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -96
+      ],
+      "id": "15a2a0b2-9aff-402a-b4f5-ccd8b7fcdcb3",
+      "name": "Send an email",
+      "credentials": {
+        "aws": {
+          "id": "LlttfdEXTU26Aoqd",
+          "name": "AWS (IAM) account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 50
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        464,
+        -112
+      ],
+      "id": "921bbbdb-91f6-4b67-9595-6f0b6d8ea999",
+      "name": "Wait",
+      "webhookId": "a7b5bade-9e74-42a1-81d3-b3f77e9c76dc"
+    },
+    {
+      "parameters": {
+        "amount": 50
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        432,
+        96
+      ],
+      "id": "2d39790c-9c33-42e2-a6a3-77127804bdcd",
+      "name": "Wait1",
+      "webhookId": "a7b5bade-9e74-42a1-81d3-b3f77e9c76dc"
+    },
+    {
+      "parameters": {
+        "subject": "Congratulation for you loan approval!!",
+        "body": "=Hi ,  Great news! You have one or more loan products you are eligible for.  Please visit your dashboard to explore your best loan options.  - Loan Engine",
+        "fromEmail": "120104.akshat@gmail.com",
+        "toAddresses": [
+          "=120104.akshat@gmail.com"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.awsSes",
+      "typeVersion": 1,
+      "position": [
+        752,
+        96
+      ],
+      "id": "d9bbcd75-6b08-45bb-a4e2-eefa4e8910af",
+      "name": "Send an email1",
+      "credentials": {
+        "aws": {
+          "id": "LlttfdEXTU26Aoqd",
+          "name": "AWS (IAM) account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT \n    u.user_id,\n    u.name,\n    u.email\nFROM matches m\nJOIN users u ON u.user_id = m.user_id\nWHERE m.status = 'pending_llm';\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        208,
+        96
+      ],
+      "id": "4fdd48e8-c82c-45ef-b336-73cb6befe43f",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "WrwHWlroXdfH1lGq",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "d92a7f82-c21d-4650-a1fc-0aec55fbcf2f",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ed8ec362-6b22-4fff-b08d-82be90bdd47a",
+      "name": "Webhook",
+      "webhookId": "d92a7f82-c21d-4650-a1fc-0aec55fbcf2f"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send an email": {
+      "main": [
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Send an email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Send an email1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4944fcb3-52a3-4e16-a9d6-d5c240087b38",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6b2fcbe80b0303657b9937dca5c1824e1eff35168fab2a742e3febeb3b916a7c"
+  },
+  "id": "XOW9KElMy3aZTkub",
+  "tags": []
+}

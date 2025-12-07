@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload CSV to Loan Engine</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            padding-top: 50px;
+        }
+        .container {
+            width: 520px;
+            padding: 25px;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+        }
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            color: white;
+            border-radius: 5px;
+        }
+        .error {
+            background: #d9534f;
+        }
+        .success {
+            background: #5cb85c;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>📤 Upload users CSV</h2>
+
+        <input type="file" id="fileInput" accept=".csv" />
+        <br>
+
+        <button onclick="uploadCSV()">Upload CSV</button>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        async function uploadCSV() {
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showMessage("Please select a CSV file", "error");
+                return;
+            }
+
+            showMessage("Requesting upload URL...", "success");
+
+            // YOUR API GATEWAY URL
+            const apiUrl = "https://0thnjpfmpa.execute-api.us-east-1.amazonaws.com/default/getUploadUrl";
+
+            try {
+                const res = await fetch(apiUrl);
+                const data = await res.json();
+
+                console.log("Presign response:", data);
+
+                const uploadUrl = data.uploadUrl;
+
+                if (!uploadUrl) {
+                    showMessage("Error: uploadUrl missing in response", "error");
+                    return;
+                }
+
+                showMessage("Uploading to S3...", "success");
+
+                const uploadRes = await fetch(uploadUrl, {
+                    method: "PUT",
+                    headers: { "Content-Type": "text/csv" },
+                    body: file
+                });
+
+                if (!uploadRes.ok) {
+                    showMessage("S3 Upload failed!", "error");
+                    return;
+                }
+
+                showMessage("Upload successful! Lambda will now process the CSV", "success");
+            } catch (err) {
+                console.error("ERROR:", err);
+                showMessage("Upload failed: " + err.message, "error");
+            }
+        }
+
+        function showMessage(msg, type) {
+            const status = document.getElementById("status");
+            status.className = type;
+            status.innerText = msg;
+        }
+    </script>
+</body>
+</html>

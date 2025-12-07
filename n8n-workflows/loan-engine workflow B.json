@@ -1,0 +1,319 @@
+{
+  "name": "loan-engine workflow B",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/match-trigger",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3e175df7-579e-4bcd-9155-66d59c254f71",
+      "name": "Webhook",
+      "webhookId": "66863864-7a23-4e50-b8ca-bf0523d81fa2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get data from upstream nodes\nconst users = $items(\"Fetch Users\", 0, 0).map(i => i.json);\nconst products = $items(\"Fetch Loan Products\", 0, 0).map(i => i.json);\n\nconst eligible = [];\nconst borderline = [];\n\n// RULES FOR BORDERLINE (tune as needed)\nconst SCORE_TOLERANCE = 20;   // product.min_credit_score ± 20\nconst INCOME_TOLERANCE = 0.10; // within 10%\n\nfor (const user of users) {\n  for (const product of products) {\n\n    // ------------------------\n    // STAGE 2: Hard Filtering\n    // ------------------------\n    if (user.monthly_income < product.min_income) continue;\n    if (user.credit_score < product.min_credit_score) continue;\n    if (user.age > product.max_age) continue;\n\n    // -----------------------------------------\n    // STAGE 3: Borderline candidate detection\n    // -----------------------------------------\n\n    const borderlineScore = user.credit_score <= product.min_credit_score + SCORE_TOLERANCE;\n    const borderlineIncome = user.monthly_income <= product.min_income * (1 + INCOME_TOLERANCE);\n\n    if (borderlineScore || borderlineIncome) {\n      borderline.push({\n        user_id: user.user_id,\n        product_id: product.product_id,\n        reason: \"borderline\",\n        status: \"pending_llm\"\n      });\n      continue; // skip adding to eligible\n    }\n\n    // -------------------------------\n    // STAGE 2 FINAL MATCH (eligible)\n    // -------------------------------\n    eligible.push({\n      user_id: user.user_id,\n      product_id: product.product_id,\n      status: \"eligible\"\n    });\n  }\n}\n\nreturn [\n  { json: { eligible } },\n  { json: { borderline } }\n];\n\n\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        128
+      ],
+      "id": "22d4b670-3363-4fbb-bf4c-8a7f88672496",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO matches (user_id, product_id, status)\nSELECT \n  '{{$json.user_id}}',\n  {{$json.product_id}},\n  '{{$json.status}}'\nWHERE NOT EXISTS (\n  SELECT 1 FROM matches \n  WHERE user_id = '{{$json.user_id}}'\n    AND product_id = {{$json.product_id}}\n);\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1216,
+        32
+      ],
+      "id": "e93f53ea-c582-44fb-8281-814b44c46182",
+      "name": "Execute a SQL query2",
+      "credentials": {
+        "postgres": {
+          "id": "WrwHWlroXdfH1lGq",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM users\nWHERE \n    monthly_income >= (SELECT MIN(min_income) FROM loan_products)\nAND credit_score >= (SELECT MIN(min_credit_score) FROM loan_products)\nAND age <= (SELECT MAX(max_age) FROM loan_products);\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        208,
+        0
+      ],
+      "id": "07100081-c42f-4fa5-b09b-50561aab8321",
+      "name": "Fetch Users",
+      "credentials": {
+        "postgres": {
+          "id": "WrwHWlroXdfH1lGq",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM loan_products;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        208,
+        288
+      ],
+      "id": "54ecdacb-5f02-40c0-9a7c-57606de9ff27",
+      "name": "Fetch Loan Products",
+      "credentials": {
+        "postgres": {
+          "id": "WrwHWlroXdfH1lGq",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        464,
+        144
+      ],
+      "id": "fb532bd3-efad-4fe8-a866-ec9b3bd34069",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "eligible",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        976,
+        32
+      ],
+      "id": "a3920aa5-85f5-4e31-9e8f-cb52c9e29d3f",
+      "name": "Eligible Split out"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "borderline",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        992,
+        304
+      ],
+      "id": "cb2b3820-3a69-4171-a37b-14e29e78cc81",
+      "name": "borderline split out"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO matches (user_id, product_id, status)\nSELECT \n  '{{$json.user_id}}',\n  {{$json.product_id}},\n  '{{$json.status}}'\nWHERE NOT EXISTS (\n  SELECT 1 FROM matches \n  WHERE user_id = '{{$json.user_id}}'\n    AND product_id = {{$json.product_id}}\n);\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1248,
+        304
+      ],
+      "id": "53e6330f-22d3-48e1-85ce-90e368df6b39",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "WrwHWlroXdfH1lGq",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://5caa3dd437b6.ngrok-free.app/webhook/d92a7f82-c21d-4650-a1fc-0aec55fbcf2f",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1648,
+        160
+      ],
+      "id": "31ce3596-0079-465c-b414-73428a0afe7d",
+      "name": "HTTP Request",
+      "retryOnFail": true,
+      "maxTries": 4
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1424,
+        144
+      ],
+      "id": "49c70e0d-37fb-4fd1-9048-f35449fa7f84",
+      "name": "Merge1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch Loan Products",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "borderline split out",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Eligible Split out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Users": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Loan Products": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eligible Split out": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "borderline split out": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query2": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f67faefa-37cd-43ba-83f8-9b988ba7c923",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6b2fcbe80b0303657b9937dca5c1824e1eff35168fab2a742e3febeb3b916a7c"
+  },
+  "id": "CHT77atX7y3N8zI5",
+  "tags": []
+}

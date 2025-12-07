@@ -1,0 +1,55 @@
+service: loan-eligibility-engine
+
+frameworkVersion: "3"
+
+useDotenv: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+
+  environment:
+    BUCKET_NAME: ${env:BUCKET_NAME}
+    DB_HOST: ${env:DB_HOST}
+    DB_USER: ${env:DB_USER}
+    DB_PASS: ${env:DB_PASS}
+    DB_NAME: ${env:DB_NAME}
+    WEBHOOK_URL: ${env:WEBHOOK_URL}
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:PutObject
+        - s3:ListBucket
+      Resource:
+        - arn:aws:s3:::${env:BUCKET_NAME}
+        - arn:aws:s3:::${env:BUCKET_NAME}/*
+
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: "*"
+
+functions:
+  getUploadUrl:
+    handler: getUploadUrl.getUploadUrl
+    events:
+      - http:
+          path: get-upload-url
+          method: get
+          cors: true
+
+  processCsv:
+    handler: processCsv.handler
+    timeout: 900
+    events:
+      - s3:
+          bucket: ${env:BUCKET_NAME}
+          event: s3:ObjectCreated:Put
+          rules:
+            - prefix: uploads/
+          existing: true

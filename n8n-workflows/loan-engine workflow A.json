@@ -1,0 +1,158 @@
+{
+  "name": "loan-engine workflow A",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {},
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a89369db-3307-4857-9cf7-8f32b6f70c6e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://www.bankbazaar.com/personal-loan.html",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        208,
+        192
+      ],
+      "id": "725abd20-2586-4589-b01e-1ba3d9ff8aa6",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "product_name",
+              "cssSelector": "ul h4",
+              "returnArray": true
+            },
+            {
+              "key": "bank_name"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "bb2ecc0c-ab56-4a57-ad95-319c37c79c77",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the full HTML\nconst inputItems = $input.all();\nconst fullHtml = inputItems[0].json.data || \"\";\n\n// 2. Split the HTML into \"Cards\"\nconst cardChunks = fullHtml.split('class=\"shadow-lg');\n\nconst returnData = [];\n\n// Helper function to clean text\nconst clean = (str) => str ? str.replace(/<[^>]*>/g, '').trim() : \"\";\n\n// Helper to provide default values (NUMBERS for Integer columns, STRINGS for Text columns)\nconst defaultValue = {\n    product_name: \"Unknown Product\",\n    bank_name: \"Unknown Bank\",\n    interest_rate: 7.05,  // Decimal\n    min_income: 25000,        // Integer\n    max_age: 60,          // Integer\n    min_credit_score: 750,  // Integer\n    // THE URL YOU REQUESTED:\n    product_url: \"https://www.bankbazaar.com/personal-loan.html\" \n};\n\n// 3. Loop through each chunk (skip index 0)\nfor (let i = 1; i < cardChunks.length; i++) {\n    const html = cardChunks[i];\n    const results = {};\n\n    // --- PRODUCT NAME (Text) ---\n    const nameMatch = html.match(/<ul[^>]*>[\\s\\S]*?<h4[^>]*>([\\s\\S]*?)<\\/h4>/);\n    results.product_name = nameMatch ? clean(nameMatch[1]) : defaultValue.product_name;\n\n    // --- BANK NAME (Text) ---\n    results.bank_name = results.product_name !== defaultValue.product_name \n        ? results.product_name.split(' ').slice(0, 2).join(' ') \n        : defaultValue.bank_name;\n\n    // --- INTEREST RATE (Decimal) ---\n    // Postgres DECIMAL(5,2) cannot accept \"10.85% - 21%\". We must extract \"10.85\".\n    const rateMatch = html.match(/Fixed<\\/p>[\\s\\S]*?<p[^>]*>([\\d.]+)/); \n    // We use parseFloat to turn \"10.85\" string into number 10.85\n    results.interest_rate = rateMatch ? parseFloat(rateMatch[1]) : defaultValue.interest_rate;\n\n    // --- MIN INCOME (Integer) ---\n    const incomeMatch = html.match(/(?:net income|earning at least)[^₹]*₹\\s*([\\d,]+)/);\n    // Remove commas (20,000 -> 20000) and parse to Integer\n    results.min_income = incomeMatch ? parseInt(incomeMatch[1].replace(/,/g, '')) : defaultValue.min_income;\n\n    // --- MAX AGE (Integer) ---\n    const ageMatch = html.match(/Age[^<]*less than\\s*(\\d+)/);\n    results.max_age = ageMatch ? parseInt(ageMatch[1]) : defaultValue.max_age;\n\n    // --- CREDIT SCORE (Integer) ---\n    const scoreMatch = html.match(/(?:CIBIL|Credit Score)[^0-9]*(\\d{3})/);\n    results.min_credit_score = scoreMatch ? parseInt(scoreMatch[1]) : defaultValue.min_credit_score;\n\n    // --- PRODUCT URL (Text) ---\n    results.product_url = defaultValue.product_url;\n\n    // Add to final list\n    returnData.push({ json: results });\n}\n\n// 4. Return all rows found\nreturn returnData;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        144
+      ],
+      "id": "78512095-a0e7-4523-b5d0-789a6c08b587",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO loan_products \n(bank_name, product_name, interest_rate, min_income, min_credit_score, max_age, product_url)\nVALUES ($1, $2, $3, $4, $5, $6, $7);\n\n",
+        "options": {
+          "queryBatching": "single",
+          "queryReplacement": "={{ $json.bank_name }} , {{ $json.product_name }} , {{ $json.interest_rate }} , {{ $json.min_income }} , {{ $json.min_credit_score }} , {{ $json.max_age }} , {{ $json.product_url }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        752,
+        144
+      ],
+      "id": "4a9298e7-38a1-4ca8-bbe0-7965a5dbf8bb",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "WrwHWlroXdfH1lGq",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "67260bcf-15f8-4a4d-8318-6708cd38f237",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6b2fcbe80b0303657b9937dca5c1824e1eff35168fab2a742e3febeb3b916a7c"
+  },
+  "id": "Q4GHQ4VmMlQxswSG",
+  "tags": []
+}
